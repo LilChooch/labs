@@ -1,25 +1,232 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
-namespace Laba_4_
+namespace LABA_4_
 {
-    internal class Program
+    class Expression
+    {
+        private double value;
+
+        public Expression(string input)
+        {
+            ConvertToRpnAndEvaluate(input);
+        }
+
+        private void ConvertToRpnAndEvaluate(string input)
+        {
+            var rpnTokens = ConvertToRpn(input);
+            EvaluateRpn(rpnTokens);
+        }
+
+        private List<Token> ConvertToRpn(string input)
+        {
+            List<Token> rpn = new List<Token>();
+            Stack<Token> stack = new Stack<Token>();
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char currentChar = input[i];
+
+                if (IsDigit(currentChar))
+                {
+                    string num = currentChar.ToString();
+
+                    while (i + 1 < input.Length && (Char.IsDigit(input[i + 1]) || input[i + 1] == '.'))
+                    {
+                        num += input[i + 1];
+                        i++;
+                    }
+
+                    rpn.Add(new Number(num));
+                }
+                else if (IsOperator(currentChar) || IsParenthesis(currentChar))
+                {
+                    ProcessOperatorOrParenthesis(currentChar, rpn, stack);
+                }
+            }
+
+            while (stack.Count > 0)
+            {
+                rpn.Add(stack.Pop());
+            }
+
+            return rpn;
+        }
+
+        private void ProcessOperatorOrParenthesis(char symbol, List<Token> rpn, Stack<Token> stack)
+        {
+            if (symbol == ')')
+            {
+                while (stack.Peek().Symbol != '(')
+                {
+                    rpn.Add(stack.Pop());
+                }
+                stack.Pop();
+            }
+            else
+            {
+                while (stack.Count > 0 && stack.Peek().Symbol != '(' && GetPriority(symbol) <= GetPriority(stack.Peek().Symbol))
+                {
+                    rpn.Add(stack.Pop());
+                }
+                stack.Push(new Operator(symbol));
+            }
+        }
+
+        private void EvaluateRpn(List<Token> rpnTokens)
+        {
+            Stack<double> numbers = new Stack<double>();
+            Stack<Token> operations = new Stack<Token>();
+
+            foreach (var token in rpnTokens)
+            {
+                if (token is Number numberToken)
+                {
+                    numbers.Push(numberToken.Value);
+                }
+                else if (token is Operator operatorToken)
+                {
+                    while (operations.Count > 0 && operations.Peek() is Operator && operatorToken.Priority <= ((Operator)operations.Peek()).Priority)
+                    {
+                        numbers.Push(((Operator)operations.Pop()).Apply(numbers.Pop(), numbers.Pop()));
+                    }
+                    operations.Push(operatorToken);
+                }
+            }
+
+            while (operations.Count > 0)
+            {
+                numbers.Push(((Operator)operations.Pop()).Apply(numbers.Pop(), numbers.Pop()));
+            }
+
+            if (numbers.Count == 1)
+            {
+                value = numbers.Pop();
+            }
+            else
+            {
+                throw new InvalidOperationException("Ошибка");
+            }
+        }
+
+        public double Value => value;
+
+        private bool IsDigit(char symbol)
+        {
+            return Char.IsDigit(symbol) || symbol == '.';
+        }
+
+        private bool IsOperator(char symbol)
+        {
+            return symbol == '+' || symbol == '-' || symbol == '*' || symbol == '/';
+        }
+
+        private bool IsParenthesis(char symbol)
+        {
+            return symbol == '(' || symbol == ')';
+        }
+
+        private int GetPriority(char symbol)
+        {
+            switch (symbol)
+            {
+                case '+':
+                case '-':
+                    return 1;
+                case '*':
+                case '/':
+                    return 2;
+                default:
+                    return 0;
+            }
+        }
+    }
+
+    class Token
+    {
+        public char Symbol { get; }
+
+        public Token(char symbol)
+        {
+            Symbol = symbol;
+        }
+    }
+
+    class Number : Token
+    {
+        public Number(string value) : base(value[0]) { Value = double.Parse(value); }
+
+        public double Value { get; }
+    }
+
+    class Operator : Token
+    {
+        public Operator(char symbol) : base(symbol) { }
+
+        public int Priority
+        {
+            get
+            {
+                switch (Symbol)
+                {
+                    case '+':
+                    case '-':
+                        return 1;
+                    case '*':
+                    case '/':
+                        return 2;
+                    default:
+                        return 0;
+                }
+            }
+        }
+
+        public double Apply(double operand1, double operand2)
+        {
+            switch (Symbol)
+            {
+                case '+':
+                    return operand2 + operand1;
+                case '-':
+                    return operand2 - operand1;
+                case '*':
+                    return operand2 * operand1;
+                case '/':
+                    if (operand1 != 0)
+                    {
+                        return operand2 / operand1;
+                    }
+                    else
+                    {
+                        throw new DivideByZeroException("На ноль делить нельзя");
+                    }
+                default:
+                    throw new ArgumentException("Недопустимый оператор " + Symbol);
+            }
+        }
+    }
+
+    class LeftParenthesis : Token
+    {
+        public LeftParenthesis() : base('(') { }
+    }
+
+    class RightParenthesis : Token
+    {
+        public RightParenthesis() : base(')') { }
+    }
+
+    class Program
     {
         static void Main()
         {
             Console.Write("Введите выражение в обычной записи:");
             string expression = Console.ReadLine();
-            var result = EvaluateExpression(expression);
+            var exp = new Expression(expression);
             var input = ConvertToRpn(expression);
             Console.WriteLine(string.Join("", input));
-            Console.WriteLine("Результат: " + result);
+            Console.WriteLine("Результат: " + exp.Value);
         }
-
-
-
         public static List<object> ConvertToRpn(string str)
         {
             Dictionary<object, int> prioretyDictionary = new Dictionary<object, int>
@@ -78,99 +285,6 @@ namespace Laba_4_
                 prn.Add(stack.Pop());
             }
             return prn;
-        }
-
-
-        static double EvaluateExpression(string expression)
-        {
-            Stack<double> numbers = new Stack<double>();
-            Stack<char> operations = new Stack<char>();
-
-            for (int i = 0; i < expression.Length; i++)
-            {
-                char ch = expression[i];
-
-                if (Char.IsDigit(ch))
-                {
-                    string number = "";
-                    while (i < expression.Length && (Char.IsDigit(expression[i]) || expression[i] == '.'))
-                    {
-                        number += expression[i];
-                        i++;
-                    }
-                    i--;
-
-                    double num = Double.Parse(number);
-                    numbers.Push(num);
-                }
-                else if (ch == '(')
-                {
-                    operations.Push(ch);
-                }
-                else if (ch == ')')
-                {
-                    while (operations.Peek() != '(')
-                    {
-                        numbers.Push(PerformOperation(operations.Pop(), numbers.Pop(), numbers.Pop()));
-                    }
-                    operations.Pop();
-                }
-                else if (ch == '+' || ch == '-' || ch == '*' || ch == '/')
-                {
-                    while (operations.Count > 0 && Priority(ch, operations.Peek()))
-                    {
-                        numbers.Push(PerformOperation(operations.Pop(), numbers.Pop(), numbers.Pop()));
-                    }
-                    operations.Push(ch);
-                }
-            }
-
-            while (operations.Count > 0)
-            {
-                numbers.Push(PerformOperation(operations.Pop(), numbers.Pop(), numbers.Pop()));
-            }
-
-            return numbers.Pop();
-        }
-
-        static bool Priority(char op1, char op2)
-        {
-            if (op2 == '(' || op2 == ')')
-            {
-                return false;
-            }
-            if ((op1 == '*' || op1 == '/') && (op2 == '+' || op2 == '-'))
-            {
-                return false;
-            }
-            else
-            {
-                return true;
-            }
-        }
-
-        static double PerformOperation(char operation, double num1, double num2)
-        {
-            switch (operation)
-            {
-                case '+':
-                    return num2 + num1;
-                case '-':
-                    return num2 - num1;
-                case '*':
-                    return num2 * num1;
-                case '/':
-                    if (num1 != 0)
-                    {
-                        return num2 / num1;
-                    }
-                    else
-                    {
-                        throw new DivideByZeroException("На ноль делить нельзя");
-                    }
-                default:
-                    return 0;
-            }
         }
     }
 }
